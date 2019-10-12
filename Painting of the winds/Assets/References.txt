@@ -1,0 +1,15 @@
+Chase Craig
+
+The purpose of this document is to keep track of all references and inspirations for this project.
+
+The inspiration is from Sebastian Lague on Youtube
+Boids video: https://www.youtube.com/watch?v=bqtqltqcQhw
+Clouds video: https://www.youtube.com/watch?v=4QOcCGI6xOU
+Marching cubes video: https://www.youtube.com/watch?v=M3iI2l0ltbE
+
+
+The informational sections that lead me to explore how to build these interacting agents
+Simulating Flocks: http://www.cs.toronto.edu/~dt/siggraph97-course/cwr87/
+
+How to gather points on the unit sphere to do 3d raycasting
+CR Drost's answer: https://stackoverflow.com/questions/9600801/evenly-distributing-n-points-on-a-sphere/44164075#44164075
