@@ -170,20 +170,29 @@ TrailRenderer:
       - serializedVersion: 3
         time: 0
         value: 1
-        inSlope: -1.4968086
-        outSlope: -1.4968086
+        inSlope: -3.4098217
+        outSlope: -3.4098217
         tangentMode: 0
         weightedMode: 0
         inWeight: 0.33333334
-        outWeight: 0.23534922
+        outWeight: 0.07010402
+      - serializedVersion: 3
+        time: 0.12411749
+        value: 0.054048292
+        inSlope: -0.22608048
+        outSlope: -0.22608048
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0.33333334
+        outWeight: 0.27496907
       - serializedVersion: 3
         time: 0.9935484
         value: 0.0047169924
-        inSlope: 0
-        outSlope: 0
+        inSlope: -0.053151414
+        outSlope: -0.053151414
         tangentMode: 0
         weightedMode: 0
-        inWeight: 0
+        inWeight: 0.38408604
         outWeight: 0
       m_PreInfinity: 2
       m_PostInfinity: 2
@@ -273,4 +282,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   targetDirection: {x: 0, y: 1, z: 0}
   speed: 5
-  slerpAmount: 10
+  slerpAmount: 5
+  flockRange: 2

@@ -17,7 +17,7 @@ public class BirdSpawner : MonoBehaviour
             birdMove.targetDirection = Random.onUnitSphere;
             birdMove.enabled = true;
             TrailRenderer trail = GO.GetComponentInChildren<TrailRenderer>();
-            trail.startColor = Random.ColorHSV(0,1,1f,1,.1f,1f,1f,1f);
+            trail.startColor = Random.ColorHSV(0,1f, .9f, 1f, 0.9f, 1.0f,.99f,1.0f);
             trail.endColor = new Color(0, 0, 0, 0f);
         }
     }
