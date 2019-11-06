@@ -82,16 +82,18 @@ public class BirdLogic : MonoBehaviour
     public static float _dodgeDist = 0.3f;
 
     public static List<BirdMovement> otherBirds = new List<BirdMovement>();
+    public static Dictionary<BirdMovement, Vector3> currentBirdsLoc = new Dictionary<BirdMovement, Vector3>();
     public static bool inuse = false;
     public static Dictionary<Vector3Int, HashSet<BirdMovement>> considerationNodes = new Dictionary<Vector3Int, HashSet<BirdMovement>>();
     public static void RegisterBird(BirdMovement bm)
     {
         otherBirds.Add(bm);
-        
+        currentBirdsLoc.Add(bm, bm.transform.position);
     }
     // This class is meant to purely compute the next location the bird object should fly towards.
     public static Vector3 GetNewMovement(BirdMovement bm)
     {
+        currentBirdsLoc[bm] = bm.transform.position;
         // First lets search to see if any points are free
         Quaternion qq = bm.transform.rotation;
         int __numRays = _numRays;
@@ -119,7 +121,6 @@ public class BirdLogic : MonoBehaviour
 
         if (dodging)
         {
-            Debug.Log("Dodging...");
             return bm.transform.localRotation * Quaternion.Inverse(qq) * selection.normalized;
         }
 
