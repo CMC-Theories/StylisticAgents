@@ -19,6 +19,8 @@ public class BirdSpawner : MonoBehaviour
             TrailRenderer trail = GO.GetComponentInChildren<TrailRenderer>();
             trail.startColor = Random.ColorHSV(0,1f, .9f, 1f, 0.9f, 1.0f,.99f,1.0f);
             trail.endColor = new Color(0, 0, 0, 0f);
+            Light ll = GO.GetComponentInChildren<Light>();
+            ll.color = trail.startColor;
         }
     }
 
