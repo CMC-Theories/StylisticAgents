@@ -544,7 +544,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 513
   flockDivision: 5
-  ruleStrengths: {x: 0.9, y: 0.01, z: 0.005}
+  ruleStrengths: {x: 0.9, y: 0.01, z: 0.01}
   dodgeDistance: 0.5
 --- !u!1 &1182502595
 GameObject:
@@ -978,23 +978,24 @@ AudioSource:
   m_GameObject: {fileID: 2107548109}
   m_Enabled: 1
   serializedVersion: 4
-  OutputAudioMixerGroup: {fileID: 0}
+  OutputAudioMixerGroup: {fileID: 24300002, guid: cc010df13657927408ba26faf429ea53,
+    type: 2}
   m_audioClip: {fileID: 0}
   m_PlayOnAwake: 0
-  m_Volume: 0.304
+  m_Volume: 1
   m_Pitch: 1
   Loop: 0
   Mute: 0
   Spatialize: 0
   SpatializePostEffects: 0
-  Priority: 128
-  DopplerLevel: 1
+  Priority: 0
+  DopplerLevel: 0
   MinDistance: 1
   MaxDistance: 500
   Pan2D: 0
-  rolloffMode: 0
+  rolloffMode: 1
   BypassEffects: 0
-  BypassListenerEffects: 0
+  BypassListenerEffects: 1
   BypassReverbZones: 0
   rolloffCustomCurve:
     serializedVersion: 2
@@ -1055,7 +1056,7 @@ AudioSource:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 1
+      value: 0
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -1077,9 +1078,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a75fa4f65b974114282d2da20b0b8df8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  position: 0
-  samplerate: 8000
-  frequency: 440
+  musicStyle: 1
+  positionit: 0
+  samplerate: 4000
   leftMostPlane: {fileID: 1478315641}
   rightMostPlane: {fileID: 629685653}
   topMostPlane: {fileID: 889304118}
@@ -1088,6 +1089,47 @@ MonoBehaviour:
   closePlane: {fileID: 726876111}
   minFreq: 50
   maxFreq: 250
+  MinKey: 50
+  KeySkip: 4
+  GenerationAmt: 512
+  currentAmp:
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  PianoFinder: {fileID: 7200000, guid: 4f925e39163c4724f8c73e6e3785c6c5, type: 3}
+  refreshRate: 1
+  lastRefresh: -2000
+  vol: 1
+  generatorFinished: 1
 --- !u!4 &2107548112
 Transform:
   m_ObjectHideFlags: 0

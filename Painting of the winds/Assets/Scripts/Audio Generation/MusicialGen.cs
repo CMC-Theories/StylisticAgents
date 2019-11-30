@@ -7,7 +7,7 @@ public class MusicialGen : MonoBehaviour
 
     /*
      * After further digging:
-     *      No one can _not_ access information directly from the 
+     *      No one __can__ access information directly from the 
      *      buffers inside of the function that generates audio (since
      *      it is not the main thread.)
      *      
@@ -43,65 +43,388 @@ public class MusicialGen : MonoBehaviour
      *          
      */
 
+    public enum Style{
+        ClosestFFT,
+        Chords
+    }
 
-
-
-    public static int res = 100;
-    public float[] PreSine = new float[res];
-
-    public int position = 0;
+    public Style musicStyle = Style.Chords;
+    public long positionit = 0; // This just keeps counting no matter what.
     public int samplerate = 2000; // low but we don't need higher...
-    public float frequency = 440;
     public Transform leftMostPlane, rightMostPlane, topMostPlane, bottomMostPlane, farPlane, closePlane;
     public float minFreq = 50;
     public float maxFreq = 250;
 
-    // The idea is to add up additional frequencies
-    Vector3 LMP, RMP, TMP, BMP, FP, CP;
+    // The keys that the tone generates will pick out
+    public int MinKey = 15;
+    public int KeySkip = 4;
+
+     
+
+    [Range(32,2048)]
+    public int GenerationAmt = 512;
+
+    public static int NumberOfTones = 1;
+    
+    public float[] currentAmp = new float[NumberOfTones];
+    float[] previousAmp = new float[NumberOfTones];
+
+    /*
+     *The idea is that the previous amp will ONLY
+     * be changed by the audio generator.
+    */
+
+    public ComputeShader PianoFinder;
+    ComputeBuffer GPFreq;
+    ComputeBuffer GPLocations;
+    ComputeBuffer GPKeys;
+
+
+    public float refreshRate = 10f; // 10 hertz
+    public float lastRefresh = -2000f;
+    float[] generationFreq = new float[NumberOfTones];
     void Start()
     {
-        for(int i =0; i < res; i++)
+        PDP = Application.persistentDataPath;
+        for (int i = 0; i < NumberOfTones; i++)
         {
-            PreSine[i] = Mathf.Sin(((float)i) * 2 * Mathf.PI / ((float)res));
+            // Note that the frequencies used are
+            //  always of (2pi * f / N) * t
+            previousAmp[i] = 0;
+            currentAmp[i] = 0;
         }
 
-
-        LMP = leftMostPlane.position;
-        RMP = rightMostPlane.position;
-        TMP = topMostPlane.position;
-        BMP = bottomMostPlane.position;
-        FP = farPlane.position;
-        CP = closePlane.position;
-        Debug.Log("" + LMP + " " + RMP + " " + TMP + " " + BMP + " " + FP + " " + CP);
-        AudioClip myClip = AudioClip.Create("MS", samplerate /4, 2, samplerate, true, OnAudioRead, OnAudioSet);
+        GPFreq = new ComputeBuffer(currentAmp.Length, sizeof(float));
+        GPKeys = new ComputeBuffer(generationFreq.Length, sizeof(float));
+        GPKeys.SetData(generationFreq);
+        GPFreq.SetData(currentAmp);
+        GPLocations = new ComputeBuffer(BirdLogic.MAX_BIRDS, sizeof(float) * 4);
+        int kern = FetchKernel();
+        
+        PianoFinder.SetBuffer(kern, "Loudness", GPFreq);
+        PianoFinder.SetBuffer(kern, "GenKeys", GPKeys);
+        // Change
+        if (musicStyle == Style.Chords)
+        {
+            PianoFinder.SetInt("KeyStart", (int)(Mathf.Sign(MinKey - 49))*Mathf.FloorToInt(Mathf.Abs(MinKey-49)/12));
+        }
+        else
+        {
+            PianoFinder.SetInt("KeyStart", MinKey);
+        }
+        PianoFinder.SetInt("KeyJump", KeySkip);
+        PianoFinder.SetInt("GenerationAmt", GenerationAmt);
+        PianoFinder.SetVector("LeftBound", new Vector3(Mathf.Min(leftMostPlane.position.x, rightMostPlane.position.x), 
+            Mathf.Min(bottomMostPlane.position.y, topMostPlane.position.y), Mathf.Min(closePlane.position.z, farPlane.position.z)));
+        PianoFinder.SetVector("SizeBound", new Vector3(Mathf.Abs(leftMostPlane.position.x - rightMostPlane.position.x), 
+            Mathf.Abs(topMostPlane.position.y - bottomMostPlane.position.y), Mathf.Abs(farPlane.position.z - closePlane.position.z)));
+        PianoFinder.SetVector("HertzLower", new Vector2(minFreq, maxFreq - minFreq));
+        AudioClip myClip = AudioClip.Create("MS", samplerate, 1, samplerate, true, OnAudioRead, OnAudioSet);
         AudioSource aud = GetComponent<AudioSource>();
         aud.clip = myClip;
         aud.loop = true;
         aud.Play();
     }
-    public void OnAudioRead(float[] data) {
-        int count = 0;
-        int copys = BirdLogic.otherBirds.Count;
-        int op = position;
-        for(int i = 0; i < data.Length; i++)
+    public int FetchKernel()
+    {
+        switch (musicStyle)
         {
-            data[i] = 0;
-        }
-
-        foreach (BirdMovement bm in BirdLogic.otherBirds)
-        {
-            float targFreq = (BirdLogic.currentBirdsLoc[bm].x - LMP.x) / (RMP.x - LMP.x)*(maxFreq - minFreq) + minFreq;
-            count = 0;
-            Debug.Log(targFreq);
-            position = op;
-            while (count < data.Length)
-            {
-                data[count] += Mathf.Sin(position *
-                    targFreq * Mathf.PI /samplerate)/((float)copys);
-                count++;
-                position++;
-            }
+            case Style.Chords:
+                return PianoFinder.FindKernel("PianoBird");
+            case Style.ClosestFFT:
+                return PianoFinder.FindKernel("BirdFFT");
+            default:
+                return -1;
         }
     }
-    public void OnAudioSet(int np) { position = np; }
+    public float vol = 10f;
+    public bool generatorFinished = true;
+    public void Update()
+    {
+        if(BirdLogic.otherBirds.Count == 0 || buffer1.Length == 0)
+        {
+            return;
+        }
+        if (Time.unscaledTime - lastRefresh >= 1f / refreshRate && generatorFinished)
+        {
+            Vector4[] positions = new Vector4[BirdLogic.otherBirds.Count];
+            
+            for (int i = 0; i < BirdLogic.otherBirds.Count; i++)
+            {
+                positions[i] = BirdLogic.otherBirds[i].transform.position;
+            }
+            GPLocations.SetData(positions);
+
+            int kern = FetchKernel();
+            PianoFinder.SetInt("NumLocations", BirdLogic.otherBirds.Count);
+            PianoFinder.SetBuffer(kern, "Locations", GPLocations);
+            // Actually calculate it...
+            PianoFinder.Dispatch(kern, NumberOfTones,1,1);
+            // PERFORMANCE HIT HERE :(
+            GPFreq.GetData(currentAmp);
+            GPKeys.GetData(generationFreq);
+
+
+
+            generatorFinished = false;
+            StartCoroutine(GenerateFunc());
+            lastRefresh = Time.unscaledTime;
+            counter++;
+            
+        }
+    }
+
+    public IEnumerator GenerateFunc()
+    {
+        // The idea is to do this over the course of a few seconds to allow the main thread to breath...
+        float[] data = new float[buffer1.Length];
+        for (int i = 0; i < NumberOfTones; i++)
+        {
+            if (Mathf.Approximately(previousAmp[i], 0))
+            {
+                previousAmp[i] = currentAmp[i];
+            }
+            for (int j = 0; j < data.Length; j++)
+            {
+                data[j] +=  (previousAmp[i] + ((currentAmp[i] - previousAmp[i]) * (((float)j) / data.Length))) * Mathf.Sin((generationFreq[i] / samplerate) * (positionit + j)) / NumberOfTones;
+            }
+            previousAmp[i] = currentAmp[i];
+            if(i % 3 == 0)
+            {
+                yield return null;
+            }
+        }
+        float m = 0;
+        for(int i = 0; i < data.Length; i++)
+        {
+            m = Mathf.Max(Mathf.Abs(data[i]), m);
+        }
+        if (!Mathf.Approximately(0, m))
+        {
+            for (int i = 0; i < data.Length; i++)
+            {
+                data[i] /= m;
+            }
+        }
+        rbuffer = !rbuffer;
+        while(buffer != rbuffer)
+        {
+            yield return null;
+        }
+        for(int i = 0; i < buffer1.Length; i++)
+        {
+            if (buffer)
+            {
+                // Write to buffer2
+                buffer2[i] = data[i];
+            }
+            else
+            {
+                buffer1[i] = data[i];
+            }
+        }
+        rbuffer = !rbuffer;
+        while (buffer != rbuffer)
+        {
+            yield return null;
+        }
+        for(int i = 0; i < buffer1.Length; i++)
+        {
+            if (buffer)
+            {
+                // Write to buffer2
+                buffer2[i] = data[i];
+            }
+            else
+            {
+                buffer1[i] = data[i];
+            }
+        }
+        // The idea is, we copy over the buffer twice, that way when we want to swap, we can have it swap safely and not without issues.
+        generatorFinished = true;
+        
+    }
+    float counter = 0;
+    /*
+     * Code snippet
+     * Debug.Log("Human = " +String.Join("",
+             new List<int>(aHuman)
+             .ConvertAll(i => i.ToString())
+             .ToArray()));
+     */
+
+    void OnApplicationQuit()
+    {
+        GPFreq.Dispose();
+        GPLocations.Dispose();
+        GPKeys.Dispose();
+    }
+
+    long LP = 0;
+    bool didJump = false;
+    public void OnAudioRead(float[] data)
+    {
+       
+        // INIT
+        if(buffer1.Length == 0 || buffer2.Length == 0)
+        {
+            buffer1 = new float[data.Length];
+            buffer2 = new float[data.Length];
+            Debug.Log("INIT BUFFERS WITH " + data.Length);
+        }
+
+        bool mb = rbuffer;
+        //Debug.Log(NumberToSmear[0] + " " + NumberToSmear[1]);
+        for (int i = 0; i < data.Length; i++)
+        {
+            int bufferLen = (mb ? buffer1.Length : buffer2.Length);
+            float id = (mb ? buffer1[i % bufferLen] : buffer2[i % bufferLen]);
+            if (i < SmearAmount)
+            {
+                data[i] = vol*Mathf.Lerp(NumberToSmear[0] + NumberToSmear[1]*(i+1),id, Mathf.Clamp01(((float)i) / SmearAmount));
+            }
+            else
+            {
+                if(i % bufferLen < SmearAmount)
+                {
+                    // Smear the buffer values...
+                    data[i] = vol*Mathf.Lerp((mb ? buffer1[buffer1.Length-1] + (buffer1[buffer1.Length -1] - buffer1[buffer1.Length-2])*((i%bufferLen)+1)/(SmearAmount/3f) : 
+                        buffer2[buffer2.Length-1] + (buffer2[buffer2.Length - 1] - buffer2[buffer2.Length - 2])*((i%bufferLen)+1)/(SmearAmount/3f)), 
+                       id, (Mathf.Clamp01(((float)i) / SmearAmount)));
+                }
+                else
+                {
+                    data[i] = vol*id;
+                }
+                // Lets assume that the buffers aren't generated correctly...
+                // That is, they are too small, how to handle smearing?
+            }
+        }
+        
+        
+
+        NumberToSmear[0] = data[data.Length - 1];
+        NumberToSmear[1] = (data[data.Length - 1] - data[data.Length - 2])*3f/SmearAmount;
+        
+        //Debug.Log(NumberToSmear[0] + " " + NumberToSmear[1]);
+        buffer = mb;
+        SaveWaveAsWave(data);
+    }
+    public static int SmearAmount = 20;
+    bool rbuffer = false;
+    bool buffer = false;
+    float[] buffer1 = new float[0];
+    float[] buffer2 = new float[0];
+
+    float[] NumberToSmear = new float[2]; // The idea is that it stores a psuedo derivative and a y offset
+    public static string PDP;
+    public static int WFC = 0;
+    void SaveWave(float[] dd)
+    {
+        System.IO.Directory.CreateDirectory(PDP +"/WAV");
+        System.IO.StreamWriter f = new System.IO.StreamWriter(PDP + "/WAV/wav_" + WFC + ".txt");
+        for(int i = 0; i < dd.Length; i++)
+        {
+            f.Write(dd[i] + " ");
+        }
+        f.Close();
+        WFC++;
+    }
+    public void OnAudioSet(int np) {
+        LP = positionit;
+        didJump = true;
+        Debug.Log(positionit + " " + np);
+        //positionit = np; sdassss
+    } // Ignore.
+
+    public void SaveWaveAsWave(float[] dd)
+    {
+        System.IO.Directory.CreateDirectory(PDP + "/WAV");
+        using (System.IO.BinaryWriter w = new System.IO.BinaryWriter(System.IO.File.Open(PDP + "/WAV/wav_" + WFC + ".wav", System.IO.FileMode.Create)))
+        {
+            // UGH
+            w.Write(new byte[] {0x52,0x49,0x46,0x46 });
+            w.Write(ToProperByte(36+2*dd.Length));
+            w.Write(new byte[] { 0x57, 0x41, 0x56, 0x45});
+            w.Write(new byte[] { 0x66, 0x6d, 0x74, 0x20 });
+            w.Write(ToProperByte(16));
+            w.Write(new byte[] { 0x01, 0x00});
+            w.Write(new byte[] {0x01,0x00 });
+            w.Write(ToProperByte(samplerate));
+            w.Write(ToProperByte(samplerate*2));
+            w.Write(new byte[] { 0x02,0x00});
+            w.Write(new byte[] {0x10,0x00 });
+            w.Write(new byte[] {0x64,0x61,0x74,0x61 });
+            w.Write(ToProperByte(dd.Length*2));
+            for (int i = 0; i < dd.Length; i++){
+                w.Write(TwosCompl(dd[i]));
+            }
+        }
+        WFC++;
+    }
+    public byte[] TwosCompl(float l)
+    {
+        // The idea is to transform l to a -1 <-> 1
+        int ll = Mathf.Clamp((int)(l * 32767f), -32767, 32767);
+        // Slightly interesting...
+        if (ll < 0)
+        {
+            ll = 32768 + ll;
+
+            return new byte[] { (byte)(ll % 256),(byte)(((ll-(ll%256)) / 256) + 0x80) };
+        }
+        else
+        {
+            return new byte[] { (byte)(ll % 256), (byte)(((ll - (ll % 256)) / 256)) };
+        }
+    }
+    public byte[] ToProperByte(long l)
+    {
+        byte a = (byte)(l % 256);
+        l = (l - a) / 256;
+        byte b = (byte)(l % 256);
+        l = (l - b) / 256;
+        byte c = (byte)(l % 256);
+        l = (l - c) / 256;
+        byte d = (byte)(l % 256);
+        return new byte[] {a,b,c,d };
+    }
+
+
+
+
 }
+/*
+int copys = BirdLogic.otherBirds.Count;
+Debug.Log("Human = " + System.String.Join("",
+    new List<float>(data)
+    .ConvertAll(i => i.ToString())
+    .ToArray()));
+// DON'T ZERO IT!!!!!
+int NumberSmear = (int)Mathf.Max(10, Mathf.CeilToInt(samplerate / 1000));
+SaveWave(data);
+bool hasJumped = true;
+didJump = false;
+//float NumberToSmear = data[(int)Mathf.Clamp(LP - positionit,0, data.Length-1)]; // Last datapoint...
+
+for (int i = 0; i < data.Length; i++)
+{
+    data[i] = 0;
+}
+
+// Smooth the first 100 or so samples to try to remove clicking....
+// This idea is that we have key frequencies picked out we then can generate these tones here based on their amplitude.
+for (int i = 0; i < NumberOfTones; i++)
+{
+    for (int j = 0; j < data.Length; j++)
+    {
+        data[j] += (hasJumped ? ((1f - Mathf.Clamp01(((float)j) / NumberSmear)) * NumberToSmear / ((float)NumberOfTones)) + Mathf.Clamp01(((float)j) / NumberSmear) : 1) * vol * (previousAmp[i] + ((currentAmp[i] - previousAmp[i]) * (((float)j) / data.Length))) * Mathf.Sin((generationFreq[i] / samplerate) * (positionit + j)) / NumberOfTones;
+    }
+    previousAmp[i] = currentAmp[i];
+
+}
+NumberToSmear = data[data.Length - 1];
+SaveWave(data);
+positionit += data.Length;
+Debug.Log("Generating sound...");
+*/

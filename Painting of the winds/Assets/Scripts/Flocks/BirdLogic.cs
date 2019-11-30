@@ -85,6 +85,10 @@ public class BirdLogic : MonoBehaviour
     public static Dictionary<BirdMovement, Vector3> currentBirdsLoc = new Dictionary<BirdMovement, Vector3>();
     public static bool inuse = false;
     public static Dictionary<Vector3Int, HashSet<BirdMovement>> considerationNodes = new Dictionary<Vector3Int, HashSet<BirdMovement>>();
+
+    public static int MAX_BIRDS = 512;
+
+
     public static void RegisterBird(BirdMovement bm)
     {
         otherBirds.Add(bm);

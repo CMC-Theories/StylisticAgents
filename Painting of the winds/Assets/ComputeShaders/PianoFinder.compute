@@ -1,0 +1,72 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel BirdFFT
+#pragma kernel PianoBird
+// Close enough to tau = 2pi
+#define M_TAU 6.28318530718 
+
+// This is to store the "loudness" of each key.
+RWStructuredBuffer<float> Loudness;
+
+RWStructuredBuffer<float> GenKeys;
+
+// This is to store the locations of each bird in space.
+StructuredBuffer<float4> Locations;
+
+// The starting key on the keyboard
+int KeyStart;
+// The number of keys to jump relative to the ID of the thread.
+int KeyJump;
+
+// The number of locations in the structured buffer locations
+int NumLocations;
+
+// The number of timesteps to evaluate the frequencies at
+int GenerationAmt;
+
+// Birds information
+
+// The left-bounds of the box
+float4 LeftBound;
+// The size of the box
+float4 SizeBound;
+// The lower bound on the hertz followed by the hertz range of bird
+float4 HertzLower;
+
+[numthreads(16,1,1)]
+void BirdFFT (uint3 id : SV_DispatchThreadID)
+{
+	float my_key = 440.0*pow(2.0,(id.x * KeyJump + KeyStart - 49.0)/12.0);
+	float consta = M_TAU / GenerationAmt;
+	float my_total_power = 0;
+	// Can I optimize this?
+	for (int i = 0; i < NumLocations; i++) {
+		float my_power = 0;
+		float4 thisLoc = Locations[i] - LeftBound;
+		thisLoc = float4(thisLoc.x/SizeBound.x, thisLoc.y/SizeBound.y, thisLoc.z/SizeBound.z,0);
+
+		// Technically... this would be modified to add in more hertz based on the z coordinate...
+		for (int k = 0; k < GenerationAmt; k++) {
+			my_power += sin(k * consta * (thisLoc.x * HertzLower.y + HertzLower.x))* sin(my_key *  k * consta);
+		}
+
+		my_total_power += my_power * (1-thisLoc.z);
+	}
+	GenKeys[id.x] = my_key;
+	Loudness[id.x] = my_total_power; // Only write at the end?
+    //Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}
+[numthreads(16,1,1)]
+void PianoBird(uint3 id : SV_DispatchThreadID)
+{
+	// My keys are a bit different, they are instead PROVIDED to me :(
+	int M7 = id.x % 7;
+	// Keyboard chords are just flat out silly at this point. 
+	int my_key = (12*(KeyStart + floor(id.x / 7))) + 40 +(clamp(M7, 0, 1))*(10*clamp(M7-3, 0, 1) + 4*((M7==1) +(M7==4)) + 7*((M7==2) + (M7==5)) + 11*((M7==3) + (M7==6)));
+	
+	/* 
+		Basically go over every bird
+		Based on the z-distance and the HertzLower, we can determine the amount of chords that the bird will play...
+	*/
+	GenKeys[id.x] = 440.0 * pow(2.0, (my_key - 49.0)/12.0) * M_TAU;
+	Loudness[id.x] = my_key;
+}
