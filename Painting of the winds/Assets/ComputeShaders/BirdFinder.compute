@@ -1,0 +1,67 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel FindDirection
+#define M_PI 3.14159265359
+
+
+// This is the locations and orientations of the agents
+uint NumberOfBirds;
+StructuredBuffer<float4> Locations;
+StructuredBuffer<float4> Direction; 
+RWStructuredBuffer<float4> NewDirection;
+// Sadly I have found that the problem of detecting when a object will
+// spherically collide with an AABB collider is actually really non-trivial.
+// This will be calculated instead using the physics system in unity.
+
+// This stores information about the search algorithm
+float FlockDistance;
+float DodgeDistance;
+float4 RuleStrengths;
+
+
+
+// This is an interaction that will influence the "to" vector.
+float4 totalPullPosition;
+float pullAmount;
+
+
+
+[numthreads(64,1,1)]
+void FindDirection (uint3 id : SV_DispatchThreadID)
+{
+	uint numberSeen = 0;
+	float3 aveFlock = float3(0,0,0); // POSITION
+	float3 aveVel = float3(0, 0, 0); // HEADING
+	NewDirection[id.x] = Direction[id.x];
+	for (uint other = 0; other < NumberOfBirds; other++) {
+		// ALTHOUGH WE SHOULD IGNORE OURSELVES, WE SHOULD WAIT
+		// BEFORE CHECKING TO ENSURE AS LITTLE PENALTY AS POSSIBLE!
+		// Actually...
+		int multiplier = id.x != other;
+		// If other == id.x, then it is 0, !!0 = 0, but otherwise it is not zero,
+		// !!(~1) = 1. Allows for if statements without the flow control
+		// Though it really only works on ints....
+		float dist = distance(Locations[id.x].xyz, Locations[other].xyz);
+		float consideredFlocking = clamp(ceil(FlockDistance - dist),0.0,1.0);
+		float consideredDodging = clamp(ceil(DodgeDistance - dist), 0.0, 1.0);
+		NewDirection[id.x] -= multiplier*RuleStrengths.x *consideredDodging * (Locations[other]-Locations[id.x]);
+		aveFlock += multiplier*Locations[other].xyz;
+		aveVel += multiplier*Direction[other].xyz;
+		numberSeen += multiplier * consideredFlocking;
+	}
+	uint NSC = clamp(numberSeen, 0, 1);
+	if (numberSeen != 0) {
+
+		// Ya know what?! FUCK IT! UNNORMALIZED BULLSHIT!
+		float3 npos = (aveFlock / numberSeen) - Locations[id.x].xyz;
+		float abc = length(npos);
+		
+		NewDirection[id.x].xyz *= abc;
+		NewDirection[id.x].xyz += NSC*RuleStrengths.z*npos;
+		float lenabc = length(aveVel / numberSeen);
+		NewDirection[id.x].xyz *= lenabc;
+		NewDirection[id.x].w = abc * lenabc;
+		//NewDirection[id.x].xyz = aveVel;
+		NewDirection[id.x].xyz += abc*NSC*RuleStrengths.y * aveVel / numberSeen;
+	}
+	//NewDirection[id.x].xyz += pullAmount / log2(distance(totalPullPosition.xyz, Locations[id.x].xyz) + 1.5);
+}

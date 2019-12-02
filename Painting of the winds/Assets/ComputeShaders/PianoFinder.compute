@@ -23,7 +23,8 @@ int NumLocations;
 // The number of timesteps to evaluate the frequencies at
 int GenerationAmt;
 
-// Birds information
+// The number of bins that are being evaluated
+int NumberOfBins;
 
 // The left-bounds of the box
 float4 LeftBound;
@@ -59,14 +60,40 @@ void BirdFFT (uint3 id : SV_DispatchThreadID)
 void PianoBird(uint3 id : SV_DispatchThreadID)
 {
 	// My keys are a bit different, they are instead PROVIDED to me :(
-	int M7 = id.x % 7;
+	int M7 = (KeyStart + id.x + 700) % 7;
 	// Keyboard chords are just flat out silly at this point. 
-	int my_key = (12*(KeyStart + floor(id.x / 7))) + 40 +(clamp(M7, 0, 1))*(10*clamp(M7-3, 0, 1) + 4*((M7==1) +(M7==4)) + 7*((M7==2) + (M7==5)) + 11*((M7==3) + (M7==6)));
+	int my_key = (12*(floor((KeyStart + id.x + 70) / 7) - 10)) + 40 +(clamp(M7, 0, 1))*(10*clamp(M7-3, 0, 1) + 4*((M7==1) +(M7==4)) + 7*((M7==2) + (M7==5)) + 11*((M7==3) + (M7==6)));
 	
 	/* 
 		Basically go over every bird
 		Based on the z-distance and the HertzLower, we can determine the amount of chords that the bird will play...
+
+
+		If the bird is closer to the screen, we increase the "loudness" attributed. 
 	*/
-	GenKeys[id.x] = 440.0 * pow(2.0, (my_key - 49.0)/12.0) * M_TAU;
-	Loudness[id.x] = my_key;
+
+	float binSize = SizeBound.x / NumberOfBins; // Bin size
+	float binCPos = (float(id.x) / float(NumberOfBins)) + (0.5 / float(NumberOfBins));
+	float my_total_power = 0;
+
+	for (int i = 0; i < NumLocations; i++) {
+		float my_power = 0;
+		float4 thisLoc = Locations[i] - LeftBound;
+		thisLoc = float4(thisLoc.x / SizeBound.x, thisLoc.y / SizeBound.y, thisLoc.z / SizeBound.z, 0);
+
+		// We need to determine if this bird will contribute to us pressing on the key.
+		my_power += 20.0*max(0.0, (1.0/(float(NumberOfBins))) - abs(binCPos - thisLoc.x)/binSize);
+
+		float keyL = clamp(thisLoc.x - 4 * thisLoc.y / (float(NumberOfBins)), 0, 1);
+		float keyR = clamp(thisLoc.x + 4 * thisLoc.y/(float(NumberOfBins)), 0, 1);
+
+		// Neat....
+
+		my_power += 5.0*max(0.0, (0.5/(float(NumberOfBins))) - abs(keyL - binCPos) / binSize);
+		my_power += 5.0*max(0.0, (0.5/(float(NumberOfBins))) - abs(keyR - binCPos) / binSize);
+		my_total_power += my_power * (1 - thisLoc.z); //1-z since the close pane is going to be at z=0, far is at z=1
+	}
+
+	GenKeys[id.x] = my_key;
+	Loudness[id.x] = clamp(my_total_power/(log2(abs(my_key)+1.5)),0,1);
 }

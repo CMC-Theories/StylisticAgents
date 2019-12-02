@@ -23,145 +23,167 @@ public class BirdLogic : MonoBehaviour
     public float sphereCheckRad = 0.15f;
     // The layers to consider when raycasting
     public LayerMask targetLayer = 0;
-    // The division of space, larger = less boxes to check but more birds to check (edge cases), smaller = more boxes to check but less birds to check (fewer edge cases)
-    public float flockDivision = 5f;
+
     // The strength of each rule for the birds, note it should be less than 1 usually.
     public Vector3 ruleStrengths = new Vector3(0.9f, 0.15f, 0.2f);
     // The distance of which the birds will try to maintain at minimum between any other bird
     public float dodgeDistance = 0.3f;
 
-    
+    public float speed = 0.5f;
+    public float slerpAmount = 10f;
+    // Start is called before the first frame update
+    public float flockRange = .5f;
+
+
+    ComputeBuffer LocationsOfBirds;
+    ComputeBuffer DirectionsOfBirds;
+    ComputeBuffer NewDirections;
     public void Start()
     {
-        _numRays = numRays;
-        _searchArc = searchArc;
-        _searching = (_searchArc / 360f) * 2 * Mathf.PI;
-        _sphereCheckRad = sphereCheckRad;
-        _targetLayer = targetLayer;
-        _ruleStrengths = ruleStrengths;
-        _dodgeDist = dodgeDistance;
-
+        int kern = FindBirds.FindKernel("FindDirection");
+        LocationsOfBirds = new ComputeBuffer(MAX_BIRDS, 4 * sizeof(float));
+        DirectionsOfBirds = new ComputeBuffer(MAX_BIRDS, 4*sizeof(float));
+        NewDirections = new ComputeBuffer(MAX_BIRDS, 4*sizeof(float));
+        FindBirds.SetBuffer(kern, "Locations", LocationsOfBirds);
+        FindBirds.SetBuffer(kern, "Direction", DirectionsOfBirds);
+        FindBirds.SetBuffer(kern, "NewDirection", NewDirections);
     }
     public void Update()
     {
-        if(numRays != _numRays)
+        LogicalUpdate();
+        // Originally housed some other code...
+       
+    }
+
+    public void LogicalUpdate()
+    {
+        int kern = FindBirds.FindKernel("FindDirection");
+        if(otherBirds.Count != 0)
         {
-            _numRays = numRays;
-        }
-        if(!Mathf.Approximately(searchArc,_searchArc))
-        {
-            _searchArc = searchArc;
-            _searching = (_searchArc / 360f) * 2 * Mathf.PI;
-        }
-        
-        if(!Mathf.Approximately(sphereCheckRad, _sphereCheckRad))
-        {
-            _sphereCheckRad = sphereCheckRad;
-        }
-        if(targetLayer != _targetLayer)
-        {
-            _targetLayer = targetLayer;
-        }
-        if(!Mathf.Approximately(Mathf.Epsilon,Vector3.SqrMagnitude(_ruleStrengths- ruleStrengths)))
-        {
-            _ruleStrengths = ruleStrengths;
-        }
-        if(!Mathf.Approximately(dodgeDistance, _dodgeDist))
-        {
-            _dodgeDist = dodgeDistance;
+            // Cool....
+            // This will manually change the movement....
+
+            FindBirds.SetFloat("FlockDistance", flockRange);
+            FindBirds.SetFloat("DodgeDistance", dodgeDistance);
+            FindBirds.SetInt("NumberOfBirds", otherBirds.Count);
+            FindBirds.SetVector("totalPullPosition", new Vector4());
+            FindBirds.SetFloat("pullAmount", 0);
+            FindBirds.SetVector("RuleStrengths", ruleStrengths);
+
+            Vector4[] birdLocs = new Vector4[otherBirds.Count];
+            Vector4[] birdDir = new Vector4[otherBirds.Count];
+            Vector4[] birdNewDir = new Vector4[otherBirds.Count];
+            for (int i = 0; i < otherBirds.Count; i++)
+            {
+                birdLocs[i] = otherBirds[i].transform.position;
+                birdDir[i] = otherBirds[i].transform.forward;
+            }
+            LocationsOfBirds.SetData(birdLocs, 0, 0, birdLocs.Length);
+            DirectionsOfBirds.SetData(birdDir, 0, 0, birdDir.Length);
+            FindBirds.SetBuffer(kern, "Locations", LocationsOfBirds);
+            FindBirds.SetBuffer(kern, "Direction", DirectionsOfBirds);
+            var CT = System.DateTime.UtcNow;
+            FindBirds.Dispatch(kern, otherBirds.Count, 1, 1);
+            Debug.Log((System.DateTime.UtcNow- CT).Milliseconds);
+            NewDirections.GetData(birdNewDir, 0, 0, otherBirds.Count);
+
+
+            for (int i = 0; i < otherBirds.Count; i++)
+            {
+                if (Mathf.Approximately(birdNewDir[i].w, 0))
+                {
+                    SetNewMovement(otherBirds[i], i, Vector3.zero, new float[] { numRays, searchArc, sphereCheckRad, targetLayer.value, speed, slerpAmount });
+                }
+                else
+                {
+                    SetNewMovement(otherBirds[i], i, new Vector3(birdNewDir[i].x,birdNewDir[i].y, birdNewDir[i].z)/birdNewDir[i].w, new float[] { numRays, searchArc, sphereCheckRad, targetLayer.value, speed, slerpAmount });
+                }
+               // Debug.Log(birdNewDir[i]);
+                
+            }
         }
     }
 
-    // Static variables to control the logic of how the birds will move. The issue is that static variables aren't shown in the inspector for unity.
-    public static int _numRays = 1000; 
-    public static float _searchArc = 120f;
-    private static float _searching = (120f / 360f) * 2 * Mathf.PI;
-    public static float _sphereCheckRad = 0.15f;
-    public static LayerMask _targetLayer = 0;
-    public static Vector3 _ruleStrengths = new Vector3(0.9f, 0.15f, 0.2f);
-    public static float _dodgeDist = 0.3f;
 
+    // Static variables to control the logic of how the birds will move. The issue is that static variables aren't shown in the inspector for unity.
+   
     public static List<BirdMovement> otherBirds = new List<BirdMovement>();
     public static Dictionary<BirdMovement, Vector3> currentBirdsLoc = new Dictionary<BirdMovement, Vector3>();
-    public static bool inuse = false;
-    public static Dictionary<Vector3Int, HashSet<BirdMovement>> considerationNodes = new Dictionary<Vector3Int, HashSet<BirdMovement>>();
 
     public static int MAX_BIRDS = 512;
 
+    public ComputeShader FindBirds;
 
-    public static void RegisterBird(BirdMovement bm)
+    public static List<Vector3> DirectionalValues = new List<Vector3>();
+    public static List<Vector3> UpDirectionalValues = new List<Vector3>();
+
+    public static int RegisterBird(BirdMovement bm)
     {
         otherBirds.Add(bm);
         currentBirdsLoc.Add(bm, bm.transform.position);
+        DirectionalValues.Add(bm.transform.forward);
+        UpDirectionalValues.Add(bm.transform.up);
+        return otherBirds.Count;
+    }
+
+    public static Vector3[] directions;
+
+    void OnApplicationQuit()
+    {
+        LocationsOfBirds.Dispose();
+        DirectionsOfBirds.Dispose();
+        NewDirections.Dispose();
     }
     // This class is meant to purely compute the next location the bird object should fly towards.
-    public static Vector3 GetNewMovement(BirdMovement bm)
+    public static void SetNewMovement(BirdMovement bm, int index, Vector3 newDir, float[] param)
     {
+        
+        // Slowly lerp the rotation to the target direction
         currentBirdsLoc[bm] = bm.transform.position;
         // First lets search to see if any points are free
         Quaternion qq = bm.transform.rotation;
-        int __numRays = _numRays;
-        float __searching = _searching;
+        int __numRays = Mathf.FloorToInt(param[0]);
+        float __searching = param[1];
         Vector3 selection = qq *Quaternion.Inverse(bm.transform.localRotation)* bm.targetDirection;
         float golden = (1 + Mathf.Sqrt(5f));
         bool dodging = false;
         for (int i = 0; i < __numRays; i++)
         {
-            
-            float phi = Mathf.Acos(1f - 2f * (i + .5f) / (_numRays+.5f));
+            float phi = Mathf.Acos(1f - 2f * (i + .5f) / (__numRays+.5f));
             float theta = Mathf.PI * golden * (i+.5f);
             Vector3 temp = qq * new Vector3(Mathf.Cos(theta) * Mathf.Sin(phi), Mathf.Sin(theta) * Mathf.Sin(phi), Mathf.Cos(phi));
-            //Debug.DrawRay(bm.transform.position, temp, Color.blue);
-            if(phi > _searching)
+            if (phi > __searching)
             {
                 break;
             }
-            else if(Physics.SphereCast(new Ray(bm.transform.position, temp), _sphereCheckRad, bm.speed * Time.smoothDeltaTime*2f, _targetLayer))
+            else if (Physics.SphereCast(new Ray(bm.transform.position, temp), param[2], param[4] * Time.smoothDeltaTime * 2f, (int)param[3])) 
             {
                 selection -= temp;
                 dodging = true;
             }
         }
-
-        if (dodging)
+        if (!dodging)
         {
-            return bm.transform.localRotation * Quaternion.Inverse(qq) * selection.normalized;
+            selection += qq*Quaternion.Inverse(bm.transform.localRotation)*newDir;
         }
+        //Debug.Log(selection + " " + newDir + " " + index);
+        bm.targetDirection = bm.transform.localRotation*Quaternion.Inverse(qq)*selection.normalized;
 
-
-        Vector3 aveflock = bm.transform.position;
-        bool seenOthers = false;
-        int numberSeen = 1;
-        Vector3 aveVel = selection;
-        foreach(BirdMovement bmm in otherBirds)
+        bm.transform.localRotation = Quaternion.Slerp(bm.transform.localRotation, Quaternion.LookRotation(bm.targetDirection, bm.transform.up), param[5] * Time.deltaTime);
+        // Technically make them slow down if they are going to hit something....
+        float dist = 1;
+        while (true)
         {
-            if (!bmm.Equals(bm))
+            if (Physics.Raycast(bm.transform.position, bm.transform.forward, bm.transform.forward.magnitude * param[4] * Time.smoothDeltaTime * dist * 1.25f))
             {
-                float distanceToOther = Vector3.Distance(bmm.transform.position, bm.transform.position);
-                if (distanceToOther < bm.flockRange)
-                {
-                    seenOthers = true;
-                    aveflock += bmm.transform.position;
-                    numberSeen++;
-                    // But like...yeah
-                    if (distanceToOther < _dodgeDist)
-                    {
-                        selection -= (bmm.transform.position - bm.transform.position) * _ruleStrengths.x;
-                    }
-                    aveVel +=bmm.transform.forward;
-                }
-
+                bm.transform.localRotation = Quaternion.Slerp(bm.transform.localRotation, Quaternion.LookRotation(bm.targetDirection, bm.transform.up), param[5] * Time.deltaTime);
+                dist *= .15f;
+            }
+            else
+            {
+                break;
             }
         }
-        if (seenOthers)
-        {
-            //Debug.DrawLine(bm.transform.position, (aveflock/numberSeen), Color.red);
-            selection += ((aveflock/numberSeen)-bm.transform.position).normalized * _ruleStrengths.z;
-            selection += (aveVel / numberSeen).normalized * _ruleStrengths.y;
-        }
-
-        return bm.transform.localRotation*Quaternion.Inverse(qq)*selection.normalized;
-        
-
+        bm.transform.localPosition += bm.transform.forward * param[4] * Time.smoothDeltaTime * dist;
     }
 }
