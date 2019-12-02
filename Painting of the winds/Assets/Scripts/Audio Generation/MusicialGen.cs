@@ -156,11 +156,11 @@ public class MusicialGen : MonoBehaviour
             // PERFORMANCE HIT HERE :(
             GPFreq.GetData(currentAmp);
             GPKeys.GetData(generationFreq);
-            Debug.Log(currentAmp.Length + " " + generationFreq.Length);
+            //Debug.Log(currentAmp.Length + " " + generationFreq.Length);
 
             for(int i = 0; i < currentAmp.Length; i++)
             {
-                Debug.Log(generationFreq[i]);
+                //Debug.Log(generationFreq[i]);
                 AudioSource ss = audioGen.getAudioKey((int)generationFreq[i]);
                 ss.volume = vol*currentAmp[i];
             }

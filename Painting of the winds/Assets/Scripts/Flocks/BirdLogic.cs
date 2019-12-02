@@ -50,6 +50,29 @@ public class BirdLogic : MonoBehaviour
     }
     public void Update()
     {
+        // Twitter :)
+        int kern = FindBirds.FindKernel("FindDirection");
+        if (Input.anyKey)
+        {
+            
+            Ray r = Camera.main.ScreenPointToRay(Input.mousePosition);
+            RaycastHit RH;
+            if(Physics.Raycast(r,out RH, Mathf.Infinity, targetLayer))
+            {
+               
+                FindBirds.SetFloat("pullAmount", 0.5f);
+                FindBirds.SetVector("totalPullPosition", RH.point);
+            }
+            else
+            {
+                FindBirds.SetFloat("pullAmount", 0.0f);
+            }
+            //FindBirds.SetVector("totalPullPosition", Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), ));
+        }
+        else
+        {
+            FindBirds.SetFloat("pullAmount", 0.0f);
+        }
         LogicalUpdate();
         // Originally housed some other code...
        
@@ -66,8 +89,6 @@ public class BirdLogic : MonoBehaviour
             FindBirds.SetFloat("FlockDistance", flockRange);
             FindBirds.SetFloat("DodgeDistance", dodgeDistance);
             FindBirds.SetInt("NumberOfBirds", otherBirds.Count);
-            FindBirds.SetVector("totalPullPosition", new Vector4());
-            FindBirds.SetFloat("pullAmount", 0);
             FindBirds.SetVector("RuleStrengths", ruleStrengths);
 
             Vector4[] birdLocs = new Vector4[otherBirds.Count];
@@ -84,7 +105,7 @@ public class BirdLogic : MonoBehaviour
             FindBirds.SetBuffer(kern, "Direction", DirectionsOfBirds);
             var CT = System.DateTime.UtcNow;
             FindBirds.Dispatch(kern, otherBirds.Count, 1, 1);
-            Debug.Log((System.DateTime.UtcNow- CT).Milliseconds);
+            //Debug.Log((System.DateTime.UtcNow- CT).Milliseconds);
             NewDirections.GetData(birdNewDir, 0, 0, otherBirds.Count);
 
 
@@ -98,7 +119,7 @@ public class BirdLogic : MonoBehaviour
                 {
                     SetNewMovement(otherBirds[i], i, new Vector3(birdNewDir[i].x,birdNewDir[i].y, birdNewDir[i].z)/birdNewDir[i].w, new float[] { numRays, searchArc, sphereCheckRad, targetLayer.value, speed, slerpAmount });
                 }
-               // Debug.Log(birdNewDir[i]);
+                //Debug.Log(birdNewDir[i]);
                 
             }
         }
@@ -110,7 +131,7 @@ public class BirdLogic : MonoBehaviour
     public static List<BirdMovement> otherBirds = new List<BirdMovement>();
     public static Dictionary<BirdMovement, Vector3> currentBirdsLoc = new Dictionary<BirdMovement, Vector3>();
 
-    public static int MAX_BIRDS = 512;
+    public static int MAX_BIRDS = 2048;
 
     public ComputeShader FindBirds;
 

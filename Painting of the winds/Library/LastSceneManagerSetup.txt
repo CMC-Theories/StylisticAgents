@@ -1,5 +1,5 @@
 sceneSetups:
-- path: Assets/Scenes/BirdScene.unity
+- path: Assets/Scenes/BirdScene_Music.unity
   isLoaded: 1
   isActive: 1
   isSubScene: 0

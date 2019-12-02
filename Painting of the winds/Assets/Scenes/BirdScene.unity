@@ -150,7 +150,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bird: {fileID: 314797171, guid: d3004d47185f0934ea0c6cd8fc53041d, type: 3}
-  numBirds: 255
+  numBirds: 2048
 --- !u!4 &235696925
 Transform:
   m_ObjectHideFlags: 0
@@ -545,10 +545,10 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 513
   ruleStrengths: {x: 0.9, y: 0.1, z: 0.03}
-  dodgeDistance: 1
+  dodgeDistance: 0.5
   speed: 2
   slerpAmount: 20
-  flockRange: 5
+  flockRange: 2
   FindBirds: {fileID: 7200000, guid: f4b59479fe75e694aa96c0f7f0fe0779, type: 3}
 --- !u!114 &963194230
 MonoBehaviour:

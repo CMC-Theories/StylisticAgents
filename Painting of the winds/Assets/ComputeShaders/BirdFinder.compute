@@ -32,6 +32,7 @@ void FindDirection (uint3 id : SV_DispatchThreadID)
 	float3 aveFlock = float3(0,0,0); // POSITION
 	float3 aveVel = float3(0, 0, 0); // HEADING
 	NewDirection[id.x] = Direction[id.x];
+	NewDirection[id.x].w = 1.0;
 	for (uint other = 0; other < NumberOfBirds; other++) {
 		// ALTHOUGH WE SHOULD IGNORE OURSELVES, WE SHOULD WAIT
 		// BEFORE CHECKING TO ENSURE AS LITTLE PENALTY AS POSSIBLE!
@@ -63,5 +64,5 @@ void FindDirection (uint3 id : SV_DispatchThreadID)
 		//NewDirection[id.x].xyz = aveVel;
 		NewDirection[id.x].xyz += abc*NSC*RuleStrengths.y * aveVel / numberSeen;
 	}
-	//NewDirection[id.x].xyz += pullAmount / log2(distance(totalPullPosition.xyz, Locations[id.x].xyz) + 1.5);
+	NewDirection[id.x].xyz += NewDirection[id.x].w*(totalPullPosition.xyz - Locations[id.x]) * pullAmount / log10(distance(totalPullPosition.xyz, Locations[id.x].xyz) + 10.0);
 }
